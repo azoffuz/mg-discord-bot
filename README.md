@@ -1,7 +1,7 @@
 # 🤖 MG Discord Bot
 
 MG Discord Bot — bu oddiy va bepul ishlaydigan Discord bot bo‘lib, u slash komandalar orqali serveringizni boshqarishni osonlashtiradi.  
-Bot **Dyno o‘rniga** kichik serverlar uchun juda mos keladi va Render’da tekin ishlatish mumkin.
+Bot kichik serverlar uchun juda mos keladi va Render’da tekin ishlatish mumkin.
 
 ---
 
