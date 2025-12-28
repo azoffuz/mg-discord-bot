@@ -4,6 +4,7 @@ from discord.ext import commands
 import os
 import datetime
 import re
+import requests  # Ob-havo ma'lumotlarini olish uchun
 from flask import Flask
 from threading import Thread
 
@@ -31,13 +32,12 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Slash komandalarni serverlarga yuklash
         await self.tree.sync()
         print("✅ Slash komandalar tayyor!")
 
 bot = MyBot()
 
-# Vaqt formatini tahlil qilish (masalan: 10m, 1h, 1d)
+# Vaqt formatini tahlil qilish
 def parse_duration(duration_str):
     match = re.match(r"(\d+)([smhd])", duration_str.lower())
     if not match:
@@ -52,6 +52,36 @@ def parse_duration(duration_str):
 
 # --- 3. SLASH KOMANDALAR ---
 
+# 🌦 OB-HAVO KOMANDASI
+@bot.tree.command(name="weather", description="Toshkentdagi ob-havoni ko'rsatadi")
+async def weather(interaction: discord.Interaction):
+    await interaction.response.defer() # Ma'lumot olish biroz vaqt olishi mumkin
+    try:
+        # Toshkent uchun ob-havo ma'lumotini olish (JSON formatida)
+        response = requests.get("https://wttr.in/Tashkent?format=j1")
+        data = response.json()
+        
+        current = data['current_condition'][0]
+        temp = current['temp_C']
+        desc = current['lang_ru'][0]['value'] if 'lang_ru' in current else current['weatherDesc'][0]['value']
+        hum = current['humidity']
+        wind = current['windspeedKmph']
+
+        embed = discord.Embed(
+            title="🏙 Toshkent Ob-havosi",
+            description=f"Hozirda Toshkentda: **{desc}**",
+            color=discord.Color.blue(),
+            timestamp=datetime.datetime.now()
+        )
+        embed.add_field(name="🌡 Harorat", value=f"{temp}°C", inline=True)
+        embed.add_field(name="💧 Namlik", value=f"{hum}%", inline=True)
+        embed.add_field(name="🌬 Shamol", value=f"{wind} km/soat", inline=True)
+        embed.set_footer(text="Manba: wttr.in")
+
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Ob-havo ma'lumotlarini olishda xatolik yuz berdi.")
+
 # /ping
 @bot.tree.command(name="ping", description="Bot tezligini tekshirish")
 async def ping(interaction: discord.Interaction):
@@ -64,34 +94,26 @@ async def ping(interaction: discord.Interaction):
 async def delete(interaction: discord.Interaction, soni: int):
     if soni < 1 or soni > 100:
         return await interaction.response.send_message("❌ 1 dan 100 gacha son yozing!", ephemeral=True)
-    
     await interaction.response.defer(ephemeral=True)
     deleted = await interaction.channel.purge(limit=soni)
     await interaction.followup.send(f"🧹 {len(deleted)} ta xabar o'chirildi.")
 
-# /delmute (Reply orqali ishlaydi)
+# /delmute
 @bot.tree.command(name="delmute", description="Xabarni o'chirib, foydalanuvchini mute qilish")
 @app_commands.checks.has_permissions(administrator=True)
 async def delmute(interaction: discord.Interaction, limit: str):
-    # Reply qilingan xabarni aniqlash
-    # Discord slash komandada reply qilingan xabarni olish uchun history ishlatamiz
     target_msg = None
     async for m in interaction.channel.history(limit=10):
-        # Bu yerda komandani yuborgan odam javob bergan (reply) xabarini qidiramiz
-        if interaction.message and interaction.message.reference:
-            target_msg = await interaction.channel.fetch_message(interaction.message.reference.message_id)
-            break
-        # Agar oddiy slash bo'lsa, eng oxirgi xabarni oladi (komandadan oldingisini)
         if m.author.id != bot.user.id:
             target_msg = m
             break
 
     if not target_msg:
-        return await interaction.response.send_message("❌ Xabarni aniqlab bo'lmadi. Reply qiling!", ephemeral=True)
+        return await interaction.response.send_message("❌ Xabarni aniqlab bo'lmadi.", ephemeral=True)
 
     duration = parse_duration(limit)
     if not duration:
-        return await interaction.response.send_message("❌ Xato format! Masalan: 10m, 1h, 1d", ephemeral=True)
+        return await interaction.response.send_message("❌ Xato format!", ephemeral=True)
 
     user = target_msg.author
     try:
@@ -99,9 +121,9 @@ async def delmute(interaction: discord.Interaction, limit: str):
         await user.timeout(duration)
         await interaction.response.send_message(f"🔇 {user.mention}ning xabari o'chirildi va o'zi {limit}ga mute qilindi.")
     except:
-        await interaction.response.send_message("❌ Xatolik: Ruxsat yetmadi (Bot roli past bo'lishi mumkin).", ephemeral=True)
+        await interaction.response.send_message("❌ Ruxsat yetmadi.", ephemeral=True)
 
-# /delwarn (Reply orqali ishlaydi)
+# /delwarn
 @bot.tree.command(name="delwarn", description="Xabarni o'chirib, ogohlantirish berish")
 @app_commands.checks.has_permissions(administrator=True)
 async def delwarn(interaction: discord.Interaction, message: str):
@@ -110,15 +132,14 @@ async def delwarn(interaction: discord.Interaction, message: str):
         if m.author.id != bot.user.id:
             target_msg = m
             break
-
     if target_msg:
         user = target_msg.author
         await target_msg.delete()
         await interaction.response.send_message(f"⚠️ {user.mention}, {message}")
     else:
-        await interaction.response.send_message("❌ O'chirish uchun xabar topilmadi.", ephemeral=True)
+        await interaction.response.send_message("❌ Xabar topilmadi.", ephemeral=True)
 
-# Xatolikni ushlash (Admin bo'lmaganlar uchun)
+# Xatolikni ushlash
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
@@ -126,7 +147,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 
 # --- 4. ISHGA TUSHIRISH ---
 if __name__ == "__main__":
-    keep_alive() # Render uchun
+    keep_alive()
     token = os.getenv("DISCORD_TOKEN")
     if token:
         bot.run(token)
