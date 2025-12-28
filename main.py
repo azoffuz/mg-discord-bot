@@ -7,7 +7,7 @@ import re
 from flask import Flask
 from threading import Thread
 
-# 1. Render uchun Web Server (Doimiy onlayn turish uchun)
+# 1. Render uchun Web Server
 app = Flask('')
 
 @app.route('/')
@@ -23,7 +23,7 @@ def keep_alive():
 
 # 2. Bot sozlamalari
 intents = discord.Intents.default()
-intents.members = True  # Mute va Kick uchun kerak
+intents.members = True 
 intents.message_content = True
 
 class MyBot(commands.Bot):
@@ -31,13 +31,12 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # Slash komandalarni sinxronizatsiya qilish
         await self.tree.sync()
         print(f"Slash komandalar sinxronizatsiya qilindi.")
 
 bot = MyBot()
 
-# Vaqtni hisoblash funksiyasi (10m, 1h, 2d uchun)
+# Vaqtni hisoblash funksiyasi
 def parse_duration(duration_str):
     match = re.match(r"(\d+)([smhd])", duration_str.lower())
     if not match:
@@ -52,17 +51,21 @@ def parse_duration(duration_str):
 
 # --- KOMANDALAR ---
 
-# /del
+# /ping - Botning ishlashini tekshirish
+@bot.tree.command(name="ping", description="Bot tezligini tekshirish")
+async def ping(interaction: discord.Interaction):
+    latency = round(bot.latency * 1000)
+    await interaction.response.send_message(f"🏓 Pong! Kechikish: {latency}ms")
+
+# /del - Xabarlarni o'chirish
 @bot.tree.command(name="del", description="Xabarlarni o'chirish")
 @app_commands.checks.has_permissions(administrator=True)
 async def delete_messages(interaction: discord.Interaction, soni: int):
-    if soni < 1 or soni > 100:
-        return await interaction.response.send_message("1 dan 100 gacha son yozing", ephemeral=True)
-    
-    await interaction.channel.purge(limit=soni)
-    await interaction.response.send_message(f"🧹 {soni} ta xabar o'chirildi", ephemeral=True)
+    await interaction.response.defer(ephemeral=True)
+    deleted = await interaction.channel.purge(limit=soni)
+    await interaction.followup.send(f"🧹 {len(deleted)} ta xabar o'chirildi.")
 
-# /delmute
+# /delmute - Userni mute qilish (vaqtli)
 @bot.tree.command(name="delmute", description="Userni mute qilish")
 @app_commands.checks.has_permissions(administrator=True)
 async def delmute(interaction: discord.Interaction, user: discord.Member, limit: str):
@@ -76,20 +79,17 @@ async def delmute(interaction: discord.Interaction, user: discord.Member, limit:
     except Exception as e:
         await interaction.response.send_message(f"Xatolik: {e}", ephemeral=True)
 
-# /delwarn
-@bot.tree.command(name="delwarn", description="Xabarni o'chirib ogohlantirish berish")
+# /delwarn - Xabarni o'chirib ogohlantirish berish
+@bot.tree.command(name="delwarn", description="Ogohlantirish berish")
 @app_commands.checks.has_permissions(administrator=True)
 async def delwarn(interaction: discord.Interaction, user: discord.Member, message: str):
-    # Bu yerda oxirgi xabarni o'chirish (ixtiyoriy)
     await interaction.response.send_message(f"⚠️ {user.mention}, {message}")
 
-# Xatoliklarni ushlash (Admin bo'lmaganlar uchun)
-@delete_messages.error
-@delmute.error
-@delwarn.error
-async def admin_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+# Xatoliklarni ushlash
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message("❌ Bu komandani faqat Adminlar ishlata oladi!", ephemeral=True)
+        await interaction.response.send_message("❌ Sizda admin huquqi yo'q!", ephemeral=True)
 
 # Botni ishga tushirish
 keep_alive()
