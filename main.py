@@ -122,7 +122,30 @@ async def avatar(interaction: discord.Interaction, user: discord.Member = None):
     embed = discord.Embed(title=f"{user.display_name} avatari", color=discord.Color.random())
     embed.set_image(url=user.display_avatar.url)
     await interaction.response.send_message(embed=embed)
+    
+# /clean-role
+@bot.tree.command(name="clean-role", description="Belgilangan roldagi barcha a'zolardan rolni olib tashlaydi")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(role="Tozalanadigan rolni tanlang")
+async def clean_role(interaction: discord.Interaction, role: discord.Role):
+    await interaction.response.defer(ephemeral=True) # Jarayon uzoq cho'zilishi mumkinligi uchun defer qilamiz
+    
+    count = 0
+    members = role.members # Ushbu rolga ega barcha a'zolar ro'yxati
+    
+    if not members:
+        return await interaction.followup.send(f"⚠️ **{role.name}** rolida hech kim yo'q.")
 
+    for member in members:
+        try:
+            await member.remove_roles(role, reason=f"{interaction.user} tomonidan /clean-role ishlatildi")
+            count += 1
+        except Exception as e:
+            print(f"Xatolik: {member.name} dan rolni olib bo'lmadi: {e}")
+
+    await interaction.followup.send(f"✅ **{role.name}** roli {count} ta a'zodan muvaffaqiyatli olib tashlandi.")
+    await send_log(interaction.guild, "🧹 Rol Tozalandi", f"**Rol:** {role.name}\n**Admin:** {interaction.user}\n**A'zolar soni:** {count}")
+    
 # --- MODERATSIYA KOMANDALARI ---
 
 @bot.tree.command(name="mute", description="Foydalanuvchini mute qilish")
