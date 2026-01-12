@@ -64,6 +64,37 @@ async def on_member_join(member):
 
 # --- 5. SLASH KOMANDALAR ---
 
+# /remove-role-from
+@bot.tree.command(name="remove-role-from", description="1-rolni 2-roli bor a'zolardan olib tashlaydi")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    target_role="Olib tashlanadigan rol (1-rol)",
+    filter_role="Qaysi roli borlardan olib tashlansin? (2-rol)"
+)
+async def remove_role_from(interaction: discord.Interaction, target_role: discord.Role, filter_role: discord.Role):
+    await interaction.response.defer(ephemeral=True)
+    
+    count = 0
+    # Faqat filter_role ga ega bo'lgan a'zolar ichidan qidiramiz
+    for member in filter_role.members:
+        # Agar a'zoda olib tashlanishi kerak bo'lgan rol ham bo'lsa
+        if target_role in member.roles:
+            try:
+                await member.remove_roles(target_role, reason=f"Filtr bo'yicha tozalandi: {filter_role.name}")
+                count += 1
+            except Exception as e:
+                print(f"Xatolik {member.name} bilan: {e}")
+
+    embed = discord.Embed(
+        title="🧹 Rol filtri bajarildi",
+        description=f"**{filter_role.mention}** roli bor a'zolardan **{target_role.mention}** roli olib tashlandi.",
+        color=discord.Color.green()
+    )
+    embed.add_field(name="Natija:", value=f"**{count}** ta foydalanuvchidan rol olindi.")
+    
+    await interaction.followup.send(embed=embed)
+    await send_log(interaction.guild, "🧹 Rol Filtr Tozalash", f"**Admin:** {interaction.user}\n**Olingan rol:** {target_role.name}\n**Filtr roli:** {filter_role.name}\n**Soni:** {count}")
+    
 # /server-info
 @bot.tree.command(name="server-info", description="Server haqida to'liq ma'lumot")
 async def server_info(interaction: discord.Interaction):
