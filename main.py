@@ -64,6 +64,65 @@ async def on_member_join(member):
 
 # --- 5. SLASH KOMANDALAR ---
 
+# /add-role
+@bot.tree.command(name="add-role", description="Foydalanuvchiga belgilangan rolni berish")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(user="Rol beriladigan foydalanuvchi", role="Beriladigan rol")
+async def add_role(interaction: discord.Interaction, user: discord.Member, role: discord.Role):
+    await interaction.response.defer(ephemeral=True)
+    
+    # Botning o'zidan yuqori yoki teng rolni bera olmasligini tekshirish
+    if role >= interaction.guild.me.top_role:
+        return await interaction.followup.send("❌ Men bu rolni bera olmayman, chunki u mening rolimdan baland yoki teng.")
+
+    try:
+        if role in user.roles:
+            await interaction.followup.send(f"⚠️ {user.display_name}da allaqachon **{role.name}** roli bor.")
+        else:
+            await user.add_roles(role, reason=f"{interaction.user} tomonidan berildi")
+            await interaction.followup.send(f"✅ {user.mention}ga **{role.name}** roli muvaffaqiyatli berildi.")
+            await send_log(interaction.guild, "🎭 Rol Berildi", f"**Kimga:** {user}\n**Rol:** {role.name}\n**Admin:** {interaction.user}", color=discord.Color.green())
+    except Exception as e:
+        await interaction.followup.send(f"❌ Xatolik yuz berdi: {e}")
+# /setup-colors
+@bot.tree.command(name="setup-colors", description="Server uchun 9 ta standart rang rollarini yaratadi")
+@app_commands.checks.has_permissions(administrator=True)
+async def setup_colors(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    
+    colors = {
+        "Qizil": discord.Color.red(),
+        "Ko'k": discord.Color.blue(),
+        "Yashil": discord.Color.green(),
+        "Sariq": discord.Color.gold(),
+        "Binafsha": discord.Color.purple(),
+        "To'q sariq": discord.Color.orange(),
+        "Pushti": discord.Color.from_rgb(255, 105, 180),
+        "Oq": discord.Color.from_rgb(255, 255, 255),
+        "Kulrang": discord.Color.light_gray()
+    }
+    
+    created_roles = []
+    guild = interaction.guild
+
+    for name, color in colors.items():
+        # Avval bunday nomli rol bor-yo'qligini tekshiramiz
+        existing_role = discord.utils.get(guild.roles, name=name)
+        if not existing_role:
+            try:
+                await guild.create_role(name=name, color=color, reason="Ranglar sozlamasi")
+                created_roles.append(name)
+            except Exception as e:
+                print(f"Xatolik {name} rolini yaratishda: {e}")
+        else:
+            created_roles.append(f"{name} (mavjud)")
+
+    result_text = ", ".join(created_roles)
+    await interaction.followup.send(f"✅ Rangli rollar tayyor: {result_text}")
+    
+    # Log yuborish 
+    await send_log(guild, "🎨 Ranglar Sozlandi", f"**Admin:** {interaction.user}\n**Yaratilgan rollar:** {result_text}")
+    
 # /remove-role-from
 @bot.tree.command(name="remove-role-from", description="1-rolni 2-roli bor a'zolardan olib tashlaydi")
 @app_commands.checks.has_permissions(administrator=True)
